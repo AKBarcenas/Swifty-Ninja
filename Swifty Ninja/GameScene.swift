@@ -123,6 +123,7 @@ class GameScene: SKScene {
      * Parameters: currentTime - the current system time.
      * Purpose: This method keeps track of how many enemies are bombs and stops the bomb sound
      *   when there are no longer any bomb enemies. Also remove any enemies that are off of the screen.
+     *   The user will lose a life if the enemy removed off the screen was a penguin.
      * Return Value: None
      */
     
@@ -146,11 +147,29 @@ class GameScene: SKScene {
         
         if activeEnemies.count > 0 {
             for node in activeEnemies {
+                // The node is below the screen.
                 if node.position.y < -140 {
-                    node.removeFromParent()
+                    node.removeAllActions()
                     
-                    if let index = activeEnemies.indexOf(node) {
-                        activeEnemies.removeAtIndex(index)
+                    // The node is a penguin.
+                    if node.name == "enemy" {
+                        node.name = ""
+                        subtractLife()
+                        
+                        node.removeFromParent()
+                        
+                        if let index = activeEnemies.indexOf(node) {
+                            activeEnemies.removeAtIndex(index)
+                        }
+                    }
+                    // The node is a bomb.
+                    else if node.name == "bombContainer" {
+                        node.name = ""
+                        node.removeFromParent()
+                        
+                        if let index = activeEnemies.indexOf(node) {
+                            activeEnemies.removeAtIndex(index)
+                        }
                     }
                 }
             }
@@ -229,7 +248,8 @@ class GameScene: SKScene {
      * Parameters: touches - the touches that occurred during the event.
      *   event - the event that represents what the touches are.
      * Purpose: This method gets where the user has touched and adds it to the slice points array.
-     *   Afterwards, the active slice is redrawn and a sound is played if it is active.
+     *   Afterwards, the active slice is redrawn and a sound is played if it is active. This method
+     *   also handles when an enemy is swiped by the user.
      * Return Value: None
      */
     
@@ -243,6 +263,66 @@ class GameScene: SKScene {
         
         if !swooshSoundActive {
             playSwooshSound()
+        }
+        
+        let nodes = nodesAtPoint(location)
+        
+        for node in nodes {
+            // Handles enemy destruction when the enemy is a penguin.
+            if node.name == "enemy" {
+                // 1
+                let emitter = SKEmitterNode(fileNamed: "sliceHitEnemy")!
+                emitter.position = node.position
+                addChild(emitter)
+                
+                // 2
+                node.name = ""
+                
+                // 3
+                node.physicsBody!.dynamic = false
+                
+                // 4
+                let scaleOut = SKAction.scaleTo(0.001, duration:0.2)
+                let fadeOut = SKAction.fadeOutWithDuration(0.2)
+                let group = SKAction.group([scaleOut, fadeOut])
+                
+                // 5
+                let seq = SKAction.sequence([group, SKAction.removeFromParent()])
+                node.runAction(seq)
+                
+                // 6
+                score += 1
+                
+                // 7
+                let index = activeEnemies.indexOf(node as! SKSpriteNode)!
+                activeEnemies.removeAtIndex(index)
+                
+                // 8
+                runAction(SKAction.playSoundFileNamed("whack.caf", waitForCompletion: false))
+            }
+            // Handles enemy destruction when the enemy is a bomb.
+            else if node.name == "bomb" {
+                let emitter = SKEmitterNode(fileNamed: "sliceHitBomb")!
+                emitter.position = node.parent!.position
+                addChild(emitter)
+                
+                node.name = ""
+                node.parent!.physicsBody!.dynamic = false
+                
+                let scaleOut = SKAction.scaleTo(0.001, duration:0.2)
+                let fadeOut = SKAction.fadeOutWithDuration(0.2)
+                let group = SKAction.group([scaleOut, fadeOut])
+                
+                let seq = SKAction.sequence([group, SKAction.removeFromParent()])
+                
+                node.parent!.runAction(seq)
+                
+                let index = activeEnemies.indexOf(node.parent as! SKSpriteNode)!
+                activeEnemies.removeAtIndex(index)
+                
+                runAction(SKAction.playSoundFileNamed("explosion.caf", waitForCompletion: false))
+                endGame(triggeredByBomb: true)
+            }
         }
     }
     
