@@ -9,6 +9,10 @@
 import AVFoundation
 import SpriteKit
 
+enum SequenceType: Int {
+    case OneNoBomb, One, TwoWithOneBomb, Two, Three, Four, Chain, FastChain
+}
+
 enum ForceBomb {
     case Never, Always, Default
 }
@@ -44,6 +48,17 @@ class GameScene: SKScene {
     // The enemies that are currently active in the scene.
     var activeEnemies = [SKSpriteNode]()
     
+    // Wait time between destroyed enemies and the new ones being created.
+    var popupTime = 0.9
+    // The sequence on enemies that are being created.
+    var sequence: [SequenceType]!
+    // Where in the sequence we currently are.
+    var sequencePosition = 0
+    // Delay between the enemies created in a chain sequence.
+    var chainDelay = 3.0
+    // Whether or not the next sequence of enemies is ready to be created.
+    var nextSequenceQueued = true
+    
     override func didMoveToView(view: SKView) {
         let background = SKSpriteNode(imageNamed: "sliceBackground")
         background.position = CGPoint(x: 512, y: 384)
@@ -57,6 +72,17 @@ class GameScene: SKScene {
         createScore()
         createLives()
         createSlices()
+        
+        sequence = [.OneNoBomb, .OneNoBomb, .TwoWithOneBomb, .TwoWithOneBomb, .Three, .One, .Chain]
+        
+        for _ in 0 ... 1000 {
+            let nextSequence = SequenceType(rawValue: RandomInt(min: 2, max: 7))!
+            sequence.append(nextSequence)
+        }
+        
+        RunAfterDelay(2) { [unowned self] in
+            self.tossEnemies()
+        }
     }
     
     /*
@@ -96,7 +122,7 @@ class GameScene: SKScene {
      * Function Name: update
      * Parameters: currentTime - the current system time.
      * Purpose: This method keeps track of how many enemies are bombs and stops the bomb sound
-     *   when there are no longer any bomb enemies.
+     *   when there are no longer any bomb enemies. Also remove any enemies that are off of the screen.
      * Return Value: None
      */
     
@@ -115,6 +141,26 @@ class GameScene: SKScene {
             if bombSoundEffect != nil {
                 bombSoundEffect.stop()
                 bombSoundEffect = nil
+            }
+        }
+        
+        if activeEnemies.count > 0 {
+            for node in activeEnemies {
+                if node.position.y < -140 {
+                    node.removeFromParent()
+                    
+                    if let index = activeEnemies.indexOf(node) {
+                        activeEnemies.removeAtIndex(index)
+                    }
+                }
+            }
+        } else {
+            if !nextSequenceQueued {
+                RunAfterDelay(popupTime) { [unowned self] in
+                    self.tossEnemies()
+                }
+                
+                nextSequenceQueued = true
             }
         }
     }
@@ -374,5 +420,79 @@ class GameScene: SKScene {
         
         addChild(enemy)
         activeEnemies.append(enemy)
+    }
+    
+    /*
+     * Function Name: tossEnemies
+     * Parameters: None
+     * Purpose: This method creates tosses enemies onto the screen using the createEnemy method.
+     *   The number of enemies, type of enemies, and rate at which the enemies are tossed is
+     *   determined by the current sequence position we are at. Once the enemies have been tossed,
+     *   the sequence position is updated.
+     * Return Value: None
+     */
+    
+    func tossEnemies() {
+        popupTime *= 0.991
+        chainDelay *= 0.99
+        physicsWorld.speed *= 1.02
+        
+        let sequenceType = sequence[sequencePosition]
+        
+        switch sequenceType {
+        // One penguin
+        case .OneNoBomb:
+            createEnemy(forceBomb: .Never)
+            
+        // One random enemy
+        case .One:
+            createEnemy()
+            
+        // One bomb and one penguin at the same time
+        case .TwoWithOneBomb:
+            createEnemy(forceBomb: .Never)
+            createEnemy(forceBomb: .Always)
+        
+        // Two random enemies at the same time
+        case .Two:
+            createEnemy()
+            createEnemy()
+        
+        // Three random enemies at the same time
+        case .Three:
+            createEnemy()
+            createEnemy()
+            createEnemy()
+        
+        // Four random enemies at the same time
+        case .Four:
+            createEnemy()
+            createEnemy()
+            createEnemy()
+            createEnemy()
+        
+        // A chain of random enemies
+        case .Chain:
+            createEnemy()
+            
+            RunAfterDelay(chainDelay / 5.0) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 5.0 * 2) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 5.0 * 3) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 5.0 * 4) { [unowned self] in self.createEnemy() }
+        
+        // A fast chain of random enemies
+        case .FastChain:
+            createEnemy()
+            
+            RunAfterDelay(chainDelay / 10.0) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 10.0 * 2) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 10.0 * 3) { [unowned self] in self.createEnemy() }
+            RunAfterDelay(chainDelay / 10.0 * 4) { [unowned self] in self.createEnemy() }
+        }
+        
+        
+        sequencePosition += 1
+        
+        nextSequenceQueued = false
     }
 }
