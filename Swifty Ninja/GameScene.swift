@@ -59,6 +59,17 @@ class GameScene: SKScene {
     // Whether or not the next sequence of enemies is ready to be created.
     var nextSequenceQueued = true
     
+    // Keeps track of whether or not the game has ended already.
+    var gameEnded = false
+    
+    /*
+     * Function Name: didMoveToView
+     * Parameters: view - the view that called this method.
+     * Purpose: This method sets up the visual environment of the game and
+     *   sets up the enemy sequences that will be used when spawning enemies.
+     * Return Value: None
+     */
+    
     override func didMoveToView(view: SKView) {
         let background = SKSpriteNode(imageNamed: "sliceBackground")
         background.position = CGPoint(x: 512, y: 384)
@@ -254,6 +265,10 @@ class GameScene: SKScene {
      */
     
     override func touchesMoved(touches: Set<UITouch>, withEvent event: UIEvent?) {
+        if gameEnded {
+            return
+        }
+        
         guard let touch = touches.first else { return }
         
         let location = touch.locationInNode(self)
@@ -513,6 +528,10 @@ class GameScene: SKScene {
      */
     
     func tossEnemies() {
+        if gameEnded {
+            return
+        }
+        
         popupTime *= 0.991
         chainDelay *= 0.99
         physicsWorld.speed *= 1.02
@@ -574,5 +593,72 @@ class GameScene: SKScene {
         sequencePosition += 1
         
         nextSequenceQueued = false
+    }
+    
+    /*
+     * Function Name: subtractLife
+     * Parameters: None
+     * Purpose: This method subtracts a life from the player and display to the user that they
+     *   have lost a life. This method also ends the game when the user has lost a total of three lives
+     *   before this method has been currently called.
+     * Return Value: None
+     */
+    
+    func subtractLife() {
+        lives -= 1
+        
+        runAction(SKAction.playSoundFileNamed("wrong.caf", waitForCompletion: false))
+        
+        var life: SKSpriteNode
+        
+        // Two lives left
+        if lives == 2 {
+            life = livesImages[0]
+        }
+        // One life left
+        else if lives == 1 {
+            life = livesImages[1]
+        }
+        // No lives left
+        else {
+            life = livesImages[2]
+            endGame(triggeredByBomb: false)
+        }
+        
+        life.texture = SKTexture(imageNamed: "sliceLifeGone")
+        
+        life.xScale = 1.3
+        life.yScale = 1.3
+        life.runAction(SKAction.scaleTo(1, duration:0.1))
+    }
+    
+    /*
+     * Function Name: endGame
+     * Parameters: triggeredByBomb - whether or not the ending of the game was triggered by a bomb.
+     * Purpose: This method ends the game by stopping any user interaction and sounds that were being
+     *   played. If the game ending was triggered by a bomb, then all of the user's lives will be cleared
+     *   where their lives are displayed.
+     * Return Value: None
+     */
+    
+    func endGame(triggeredByBomb triggeredByBomb: Bool) {
+        if gameEnded {
+            return
+        }
+        
+        gameEnded = true
+        physicsWorld.speed = 0
+        userInteractionEnabled = false
+        
+        if bombSoundEffect != nil {
+            bombSoundEffect.stop()
+            bombSoundEffect = nil
+        }
+        
+        if triggeredByBomb {
+            livesImages[0].texture = SKTexture(imageNamed: "sliceLifeGone")
+            livesImages[1].texture = SKTexture(imageNamed: "sliceLifeGone")
+            livesImages[2].texture = SKTexture(imageNamed: "sliceLifeGone")
+        }
     }
 }
